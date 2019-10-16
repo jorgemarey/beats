@@ -33,11 +33,7 @@
               type: keyword
               description: >
                 Resource group
-            - name: provider
-              type: keyword
-              description: >
-                Resource type/namespace
-            - name: namespace
+            - name: type
               type: keyword
               description: >
                 Resource type/namespace

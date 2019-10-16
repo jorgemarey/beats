@@ -1559,17 +1559,7 @@ type: keyword
 
 --
 
-*`azure.resource.provider`*::
-+
---
-Resource type/namespace
-
-
-type: keyword
-
---
-
-*`azure.resource.namespace`*::
+*`azure.resource.type`*::
 +
 --
 Resource type/namespace
