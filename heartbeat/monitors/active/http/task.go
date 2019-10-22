@@ -215,7 +215,7 @@ func execPing(
 	validator multiValidator,
 	responseConfig responseConfig,
 	redirects *[]string,
-) (start, end time.Time, err reason.Reason) {
+) (start, end time.Time, errReason reason.Reason) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -232,17 +232,16 @@ func execPing(
 		return start, time.Now(), errReason
 	}
 
-	bodyFields, errReason := processBody(resp, responseConfig, validator)
-
-	responseFields := common.MapStr{
-		"status_code": resp.StatusCode,
-		"body":        bodyFields,
-	}
-
-	httpFields := common.MapStr{"response": responseFields}
-
+	// Add response.status_code and redirects
+	response := common.MapStr{"response": common.MapStr{"status_code": resp.StatusCode}}
 	if redirects != nil && len(*redirects) > 0 {
-		httpFields["redirects"] = redirects
+		response["redirects"] = redirects
+	}
+	eventext.MergeEventFields(event, common.MapStr{"http": response})
+	// Download the body, close the response body, then attach all fields
+	err := handleRespBody(event, resp, responseConfig, errReason)
+	if err != nil {
+		return start, time.Now(), reason.IOFailed(err)
 	}
 	eventext.MergeEventFields(event, common.MapStr{"http": httpFields})
 
