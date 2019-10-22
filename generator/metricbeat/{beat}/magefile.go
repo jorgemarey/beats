@@ -9,18 +9,13 @@ import (
 	"github.com/magefile/mage/mg"
 
 	devtools "github.com/elastic/beats/dev-tools/mage"
-	"github.com/elastic/beats/generator/common/beatgen"
-	metricbeat "github.com/elastic/beats/metricbeat/scripts/mage"
-
-	// mage:import
-	_ "github.com/elastic/beats/dev-tools/mage/target/common"
-	// mage:import
 	"github.com/elastic/beats/dev-tools/mage/target/build"
 	"github.com/elastic/beats/dev-tools/mage/target/collectors"
 	"github.com/elastic/beats/dev-tools/mage/target/common"
 	"github.com/elastic/beats/dev-tools/mage/target/pkg"
 	"github.com/elastic/beats/dev-tools/mage/target/unittest"
 	"github.com/elastic/beats/dev-tools/mage/target/update"
+	"github.com/elastic/beats/generator/common/beatgen"
 	metricbeat "github.com/elastic/beats/metricbeat/scripts/mage"
 )
 
