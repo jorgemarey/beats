@@ -300,21 +300,26 @@ class Test(metricbeat.BaseTest):
             e = sys.exc_info()[0]
             print "Trial already enabled. Error: {}".format(e)
 
-    def start_basic(self):
-        # Check if basic license is already enabled
-        response = self.es.transport.perform_request('GET', self.license_url)
-        if response["license"]["type"] == "basic":
-            return
-
-        try:
-            self.es.transport.perform_request('POST', self.license_url + "/start_basic?acknowledge=true")
-        except:
-            e = sys.exc_info()[0]
-            print "Basic license already enabled. Error: {}".format(e)
-
     def check_skip(self, metricset):
         if metricset == 'ccr' and not self.is_ccr_available():
             raise SkipTest("elasticsearch/ccr metricset system test only valid with Elasticsearch versions >= 6.5.0")
+
+        if metricset == 'enrich' and not self.is_enrich_available():
+            raise SkipTest("elasticsearch/enrich metricset system test only valid with Elasticsearch versions >= 7.5.0")
+
+    def is_ccr_available(self):
+        es_version = self.get_version()
+        major = es_version["major"]
+        minor = es_version["minor"]
+
+        return major > 6 or (major == 6 and minor >= 5)
+
+    def is_enrich_available(self):
+        es_version = self.get_version()
+        major = es_version["major"]
+        minor = es_version["minor"]
+
+        return major > 7 or (major == 7 and minor >= 5)
 
         if metricset == 'enrich' and not self.is_enrich_available():
             raise SkipTest("elasticsearch/enrich metricset system test only valid with Elasticsearch versions >= 7.5.0")
