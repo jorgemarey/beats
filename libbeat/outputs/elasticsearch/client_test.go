@@ -430,54 +430,21 @@ func (r *testBulkRecorder) AddRaw(raw interface{}) error {
 	return nil
 }
 
-func TestBulkReadToItems(t *testing.T) {
-	response := []byte(`{
-		"errors": false,
-		"items": [
-			{"create": {"status": 200}},
-			{"create": {"status": 300}},
-			{"create": {"status": 400}}
-    ]}`)
+func TestClientWithAPIKey(t *testing.T) {
+	var headers http.Header
 
-	reader := NewJSONReader(response)
+	// Start a mock HTTP server, save request headers
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		headers = r.Header
+	}))
+	defer ts.Close()
 
-	err := BulkReadToItems(reader)
+	client, err := NewClient(ClientSettings{
+		URL:    ts.URL,
+		APIKey: "hyokHG4BfWk5viKZ172X:o45JUkyuS--yiSAuuxl8Uw",
+	}, nil)
 	assert.NoError(t, err)
 
-	for status := 200; status <= 400; status += 100 {
-		err = reader.ExpectDict()
-		assert.NoError(t, err)
-
-		kind, raw, err := reader.nextFieldName()
-		assert.NoError(t, err)
-		assert.Equal(t, mapKeyEntity, kind)
-		assert.Equal(t, []byte("create"), raw)
-
-		err = reader.ExpectDict()
-		assert.NoError(t, err)
-
-		kind, raw, err = reader.nextFieldName()
-		assert.NoError(t, err)
-		assert.Equal(t, mapKeyEntity, kind)
-		assert.Equal(t, []byte("status"), raw)
-
-		code, err := reader.nextInt()
-		assert.NoError(t, err)
-		assert.Equal(t, status, code)
-
-		_, _, err = reader.endDict()
-		assert.NoError(t, err)
-
-		_, _, err = reader.endDict()
-		assert.NoError(t, err)
-	}
-}
-
-func TestBulkReadItemStatus(t *testing.T) {
-	response := []byte(`{"create": {"status": 200}}`)
-
-	reader := NewJSONReader(response)
-	code, _, err := BulkReadItemStatus(reader)
-	assert.NoError(t, err)
-	assert.Equal(t, 200, code)
+	client.Ping()
+	assert.Equal(t, "ApiKey aHlva0hHNEJmV2s1dmlLWjE3Mlg6bzQ1SlVreXVTLS15aVNBdXV4bDhVdw==", headers.Get("Authorization"))
 }
