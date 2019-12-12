@@ -20,6 +20,7 @@ package actions
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/elastic/beats/libbeat/beat"
 	"github.com/elastic/beats/libbeat/common"
@@ -94,8 +95,11 @@ func optTarget(opt *string, def string) string {
 
 func makeFieldsProcessor(target string, fields common.MapStr, shared bool) processors.Processor {
 	if target != "" {
-		fields = common.MapStr{
-			target: fields,
+		splitted := strings.Split(target, ".")
+		for i := len(splitted) - 1; i >= 0; i-- {
+			fields = common.MapStr{
+				splitted[i]: fields,
+			}
 		}
 	}
 

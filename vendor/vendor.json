@@ -3010,6 +3010,12 @@
 			"revisionTime": "2019-08-24T13:30:31Z"
 		},
 		{
+			"checksumSHA1": "HyZlVyzJ6rtjwKueg0stWqYXz4s=",
+			"path": "globaldevtools.bbva.com/entsec/semaas.git/client/omega",
+			"revision": "c808c2364887077a407e57f8fa2f062601ddf7fb",
+			"revisionTime": "2019-11-08T09:39:30Z"
+		},
+		{
 			"checksumSHA1": "5vTmgwC38PsG6R4nZfI2lT0FG3M=",
 			"path": "go.opencensus.io",
 			"revision": "9c377598961b706d1542bd2d84d538b5094d596e",

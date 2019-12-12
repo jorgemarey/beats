@@ -15,19 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package includes
+package rho
 
 import (
-	// import queue types
-	_ "github.com/elastic/beats/libbeat/outputs/codec/format"
-	_ "github.com/elastic/beats/libbeat/outputs/codec/json"
-	_ "github.com/elastic/beats/libbeat/outputs/console"
-	_ "github.com/elastic/beats/libbeat/outputs/elasticsearch"
-	_ "github.com/elastic/beats/libbeat/outputs/fileout"
-	_ "github.com/elastic/beats/libbeat/outputs/kafka"
-	_ "github.com/elastic/beats/libbeat/outputs/logstash"
-	_ "github.com/elastic/beats/libbeat/outputs/redis"
-	_ "github.com/elastic/beats/libbeat/outputs/semaas"
-	_ "github.com/elastic/beats/libbeat/publisher/queue/memqueue"
-	_ "github.com/elastic/beats/libbeat/publisher/queue/spool"
+	"context"
+	"fmt"
+	"net/http"
 )
+
+// Create sends a bulk of spans to rho
+func (c *Client) Create(ctx context.Context, spans []*Span) error { // THINK: change to variadic?
+	url := fmt.Sprintf("ns/%s/spans", c.c.Namespace())
+	r := func() (*http.Request, error) { return c.request(ctx, http.MethodPost, url, spans) }
+	return c.do(r, nil)
+}
