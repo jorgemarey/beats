@@ -52,7 +52,7 @@ func (p *docker_log_parser) Run(event *beat.Event) (*beat.Event, error) {
 	}
 
 	dentry := &dockerLogEntry{}
-	if err := logfmt.Unmarshal([]byte(msg.(string)), &dentry); err != nil {
+	if err := logfmt.Unmarshal([]byte(msg.(string)), dentry); err != nil {
 		return event, nil
 	}
 
@@ -62,6 +62,10 @@ func (p *docker_log_parser) Run(event *beat.Event) (*beat.Event, error) {
 		event.PutValue("message", fmt.Sprintf("%s (%s)", dentry.Msg, dentry.Error))
 	}
 	event.Timestamp = dentry.Time
+
+	if dentry.Msg == "" {
+		return nil, nil
+	}
 
 	return event, nil
 }
