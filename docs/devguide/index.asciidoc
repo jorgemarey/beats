@@ -9,6 +9,8 @@ include::{asciidoc-dir}/../../shared/versions/stack/{source_branch}.asciidoc[]
 
 include::{asciidoc-dir}/../../shared/versions/stack/{source_branch}.asciidoc[]
 
+include::{asciidoc-dir}/../../shared/versions/stack/{source_branch}.asciidoc[]
+
 :dev-guide: true
 :beatname_lc: beatname
 :beatname_uc: a Beat
