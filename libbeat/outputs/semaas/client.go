@@ -31,6 +31,7 @@ import (
 	"globaldevtools.bbva.com/entsec/semaas.git/client/rho"
 
 	"github.com/elastic/beats/libbeat/beat"
+	"github.com/elastic/beats/libbeat/logp"
 	"github.com/elastic/beats/libbeat/common"
 	"github.com/elastic/beats/libbeat/outputs"
 	"github.com/elastic/beats/libbeat/publisher"
@@ -60,6 +61,7 @@ const (
 type semmasClient struct {
 	observer outputs.Observer
 	timeout  time.Duration
+	log 	 *logp.Logger
 
 	omegaURL string
 	rhoURL   string
@@ -114,6 +116,7 @@ func newClient(cert tls.Certificate, namespace, mrID, namespaceField, mrIDField,
 
 	return &semmasClient{
 		timeout:                  timeout,
+		log: 					  logp.NewLogger("semaas"),
 		omegaURL:                 omegaURL,
 		rhoURL:                   rhoURL,
 		muURL:                    muURL,
@@ -445,6 +448,7 @@ func newMuClient(muURL string, cert tls.Certificate) (*mu.Client, error) {
 		client.WithClientCert(cert),
 		client.WithNamespace("EMPTY"),
 		client.WithSkipVerify(),
+		client.WithTimeout(timeout)
 	)
 	if muURL != "" {
 		opts = append(opts, client.WithURL(muURL))
@@ -501,7 +505,7 @@ func (c *semmasClient) processMetricV1(event *beat.Event, namespace, fallbackMrI
 
 	if metricSetID != "" {
 		if err := c.muClient.AddMeasurements(metricSetID, []mu.Metrics{metric}, mu.WithNamespace(namespace)); err != nil {
-			fmt.Printf("Error sending metric: %s\n", err)
+			c.log.Errorf("Error sending metric: %v\n", err)
 		}
 	}
 	return nil

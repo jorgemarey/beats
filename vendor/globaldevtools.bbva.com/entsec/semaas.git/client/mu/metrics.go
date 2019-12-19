@@ -164,7 +164,7 @@ type queryOptions struct {
 
 func (o *queryOptions) prepare() {
 	if o.aggregates != nil && len(o.aggregates) > 0 {
-		o.Set("aggregate", strings.Join(o.aggregates, ","))
+		o.Set("aggregate", "\""+strings.Join(o.aggregates, "\",\"")+"\"")
 	}
 	if o.operations != nil {
 		for k, v := range o.operations {
