@@ -109,7 +109,7 @@ func newClient(cert tls.Certificate, namespace, mrID, namespaceField, mrIDField,
 	// if err != nil {
 	// 	return nil, fmt.Errorf("error creating rho client: %s", err)
 	// }
-	mc, err := newMuClient(muURL, cert)
+	mc, err := newMuClient(muURL, cert, timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -442,13 +442,13 @@ func (c *semmasClient) newSemaasBundler(namespace, kind string) (*bundler.Bundle
 	return b, nil
 }
 
-func newMuClient(muURL string, cert tls.Certificate) (*mu.Client, error) {
+func newMuClient(muURL string, cert tls.Certificate, timeout time.Duration) (*mu.Client, error) {
 	opts := mu.EnvOptions()
 	opts = append(opts,
 		client.WithClientCert(cert),
 		client.WithNamespace("EMPTY"),
 		client.WithSkipVerify(),
-		client.WithTimeout(timeout)
+		client.WithTimeout(timeout),
 	)
 	if muURL != "" {
 		opts = append(opts, client.WithURL(muURL))
