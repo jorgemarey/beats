@@ -70,9 +70,15 @@ func New(cfg *common.Config) (processors.Processor, error) {
 
 	nodeID := config.Node
 	if nodeID == "" {
-		if nodeID, err = nomadlib.GetLocalNodeID(client); err != nil {
-			logp.Err("nomad: couldn't get nomad node ID: %v", err)
-			return nil, err
+		for i := 0; i < 10; i++ {
+			if nodeID, err = nomadlib.GetLocalNodeID(client); err != nil && i == 10 {
+				logp.Err("nomad: couldn't get nomad node ID: %v", err)
+				return nil, err
+			}
+			if err == nil {
+				break
+			}
+			time.Sleep(5 * time.Second)
 		}
 	}
 	node, _, err := client.Nodes().Info(nodeID, nil)
