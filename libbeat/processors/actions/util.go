@@ -11,25 +11,25 @@ import (
 
 var re = regexp.MustCompile(`^(?i:[A-Za-z0-9\_]|[A-Za-z0-9][A-Za-z0-9\-\_]{0,61}[a-z0-9])$`)
 
-func parseItem(parent, prevKey string, item interface{}, event *beat.Event) {
+func parseItem(parent, key string, item interface{}, event *beat.Event) {
 	// Replace dots with underscores
-	prevKey = strings.ReplaceAll(prevKey, ".", "_")
+	key = strings.ReplaceAll(key, ".", "_")
 	// Validate key without special charactres
-	if !re.MatchString(prevKey) {
+	if !re.MatchString(key) {
 		return
 	}
 	switch concreteVal := item.(type) {
 	case map[string]interface{}:
-		parseMap(parent, prevKey, item.(map[string]interface{}), event)
+		parseMap(parent, key, item.(map[string]interface{}), event)
 	case []interface{}:
-		parseArray(parent, prevKey, item.([]interface{}), event)
+		parseArray(parent, key, item.([]interface{}), event)
 	case string:
 		if concreteVal != "" {
-			event.PutValue(parent+prevKey, concreteVal)
+			event.PutValue(parent+"."+key, concreteVal)
 		}
 	default:
 		if concreteVal != nil {
-			event.PutValue(parent+prevKey, concreteVal)
+			event.PutValue(parent+"."+key, concreteVal)
 		}
 	}
 }
@@ -62,7 +62,7 @@ func parseArray(parent, prevKey string, anArray []interface{}, event *beat.Event
 		}
 	}
 	if ok {
-		event.PutValue(parent+prevKey, anArray)
+		event.PutValue(parent+"."+prevKey, anArray)
 	}
 }
 
