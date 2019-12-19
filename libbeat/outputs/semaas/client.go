@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"globaldevtools.bbva.com/entsec/semaas.git/client"
+	"globaldevtools.bbva.com/entsec/semaas.git/client/mu"
 	"globaldevtools.bbva.com/entsec/semaas.git/client/omega"
 	"globaldevtools.bbva.com/entsec/semaas.git/client/rho"
 
@@ -62,6 +63,8 @@ type semmasClient struct {
 
 	omegaURL string
 	rhoURL   string
+	muURL    string
+	muClient *mu.Client
 
 	cert                     tls.Certificate
 	defaultMrID              string
@@ -74,7 +77,7 @@ type semmasClient struct {
 	l              sync.Mutex
 }
 
-func newClient(cert tls.Certificate, namespace, mrID, namespaceField, mrIDField, omegaURL, rhoURL string, apf []string, timeout time.Duration) (*semmasClient, error) {
+func newClient(cert tls.Certificate, namespace, mrID, namespaceField, mrIDField, omegaURL, rhoURL, muURL string, apf []string, timeout time.Duration) (*semmasClient, error) {
 	// opts := omega.EnvOptions()
 	// opts = append(opts,
 	// 	client.WithClientCert(cert),
@@ -104,11 +107,17 @@ func newClient(cert tls.Certificate, namespace, mrID, namespaceField, mrIDField,
 	// if err != nil {
 	// 	return nil, fmt.Errorf("error creating rho client: %s", err)
 	// }
+	mc, err := newMuClient(muURL, cert)
+	if err != nil {
+		return nil, err
+	}
 
 	return &semmasClient{
 		timeout:                  timeout,
 		omegaURL:                 omegaURL,
 		rhoURL:                   rhoURL,
+		muURL:                    muURL,
+		muClient:                 mc,
 		cert:                     cert,
 		defaultMrID:              mrID,
 		mrIDField:                mrIDField,
@@ -161,10 +170,15 @@ func (c *semmasClient) Publish(batch publisher.Batch) error {
 		}
 
 		kind, err := event.GetValue("semaas.kind")
-		if err == nil && kind.(string) == "span" {
-			err = c.processSpan(event, namespace, mrID)
-		} else {
-			err = c.processLog(event, namespace, mrID)
+		if err == nil {
+			switch kind.(string) {
+			case "span":
+				err = c.processSpan(event, namespace, mrID)
+			case "log":
+				err = c.processLog(event, namespace, mrID)
+			case "metricv1", "metriccorev1":
+				err = c.processMetricV1(event, namespace, mrID, kind.(string))
+			}
 		}
 	}
 
@@ -423,4 +437,72 @@ func (c *semmasClient) newSemaasBundler(namespace, kind string) (*bundler.Bundle
 	b.BundleByteThreshold = DefaultEntryByteThreshold
 	b.BufferedByteLimit = DefaultBufferedByteLimit
 	return b, nil
+}
+
+func newMuClient(muURL string, cert tls.Certificate) (*mu.Client, error) {
+	opts := mu.EnvOptions()
+	opts = append(opts,
+		client.WithClientCert(cert),
+		client.WithNamespace("EMPTY"),
+		client.WithSkipVerify(),
+	)
+	if muURL != "" {
+		opts = append(opts, client.WithURL(muURL))
+	}
+	sc, err := client.New(opts...)
+	if err != nil {
+		return nil, fmt.Errorf("error creating semaas client: %s", err)
+	}
+	mc, err := mu.New(sc)
+	if err != nil {
+		return nil, fmt.Errorf("error creating rho client: %s", err)
+	}
+	return mc, nil
+}
+
+func (c *semmasClient) processMetricV1(event *beat.Event, namespace, fallbackMrID, kind string) error {
+	metric := mu.Metrics{Timestamp: event.Timestamp}
+
+	if values, err := event.GetValue("semaas.metric.values"); err == nil {
+		if valuesM, ok := values.(map[string]mu.MetricValue); ok {
+			metric.Values = valuesM
+		} else {
+			return nil
+		}
+	}
+
+	if properties, err := event.GetValue("semaas.properties"); err == nil {
+		var ok bool
+		metric.Properties, ok = properties.(map[string]interface{})
+		if !ok {
+			props := properties.(common.MapStr)
+			metric.Properties = props
+		}
+	}
+	if metric.Properties == nil {
+		metric.Properties = make(map[string]interface{})
+	}
+	if kind == "metricv1" {
+		for _, field := range c.additionalPropertyFields {
+			if properties, err := event.GetValue(field); err == nil {
+				for k, v := range properties.(common.MapStr) {
+					if vc, ok := v.(string); ok {
+						metric.Properties[k] = vc
+					}
+				}
+			}
+		}
+	}
+
+	var metricSetID string
+	if msID, err := event.GetValue("semaas.metric.metricSetId"); err == nil {
+		metricSetID = msID.(string)
+	}
+
+	if metricSetID != "" {
+		if err := c.muClient.AddMeasurements(metricSetID, []mu.Metrics{metric}, mu.WithNamespace(namespace)); err != nil {
+			fmt.Printf("Error sending metric: %s\n", err)
+		}
+	}
+	return nil
 }

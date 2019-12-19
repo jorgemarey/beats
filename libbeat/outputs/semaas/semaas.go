@@ -50,7 +50,7 @@ func makeSemaas(_ outputs.IndexManager, beat beat.Info, observer outputs.Observe
 		outputs.Fail(fmt.Errorf("error loading certificate: %s", err))
 	}
 
-	c, err := newClient(cert, config.Namespace, config.MrID, config.NamespaceField, config.MrIDField, config.OmegaURL, config.RhoURL, config.AdditionalPropertyFields, config.Timeout)
+	c, err := newClient(cert, config.Namespace, config.MrID, config.NamespaceField, config.MrIDField, config.OmegaURL, config.RhoURL, config.MuURL, config.AdditionalPropertyFields, config.Timeout)
 	if err != nil {
 		outputs.Fail(fmt.Errorf("error creating client: %s", err))
 	}

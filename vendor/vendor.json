@@ -3011,6 +3011,12 @@
 			"revisionTime": "2019-08-24T13:30:31Z"
 		},
 		{
+			"checksumSHA1": "6hlsVZRSGw4oM5g1suOgb4zyND4=",
+			"path": "globaldevtools.bbva.com/entsec/semaas.git/client/mu",
+			"revision": "810ed4eb773397bf7d28902fecded19e3b8d145f",
+			"revisionTime": "2019-12-18T10:05:17Z"
+		},
+		{
 			"checksumSHA1": "HyZlVyzJ6rtjwKueg0stWqYXz4s=",
 			"path": "globaldevtools.bbva.com/entsec/semaas.git/client/omega",
 			"revision": "c808c2364887077a407e57f8fa2f062601ddf7fb",

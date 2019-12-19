@@ -24,6 +24,7 @@ type semaasConfig struct {
 	KeyFile                  string        `config:"key_file"`
 	OmegaURL                 string        `config:"omega_url"`
 	RhoURL                   string        `config:"rho_url"`
+	MuURL                    string        `config:"mu_url"`
 	MrID                     string        `config:"mrID"`
 	MrIDField                string        `config:"mrID_field"`
 	Namespace                string        `config:"namespace"`

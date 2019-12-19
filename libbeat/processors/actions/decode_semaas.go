@@ -21,11 +21,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/elastic/beats/libbeat/beat"
 	"github.com/elastic/beats/libbeat/common"
 	"github.com/elastic/beats/libbeat/processors"
 
+	"globaldevtools.bbva.com/entsec/semaas.git/client/mu"
 	"globaldevtools.bbva.com/entsec/semaas.git/client/omega"
 	"globaldevtools.bbva.com/entsec/semaas.git/client/rho"
 )
@@ -66,23 +68,40 @@ func (p *decode_semaas) Run(event *beat.Event) (*beat.Event, error) {
 }
 
 func (p *decode_semaas) parse(event *beat.Event, message string) (*beat.Event, error) {
-	if !strings.HasPrefix(message, "V2|") {
-		return event, fmt.Errorf("message isn't in a correct semaas format: does not start with version")
-	}
-	parts := strings.Split(message, "|")
-	if len(parts) < 3 {
-		return event, fmt.Errorf("message isn't in a correct semaas format: does have at least 3 parts")
-	}
-	kind := parts[1]
-	data := strings.Join(parts[2:], "|")
-
 	switch {
-	case strings.HasPrefix(kind, "LOG"): // it is a log
-		return p.parseLogEntry(event, data, kind)
-	case strings.HasPrefix(kind, "SPAN"): // it is a span
-		return p.parseSpan(event, data)
+	case strings.HasPrefix(message, "V2|"):
+		parts := strings.Split(message, "|")
+		if len(parts) < 3 {
+			return event, fmt.Errorf("message isn't in a correct semaas format: does have at least 3 parts")
+		}
+		kind := parts[1]
+		data := strings.Join(parts[2:], "|")
+
+		switch {
+		case strings.HasPrefix(kind, "LOG"): // it is a log
+			return p.parseLogEntry(event, data, kind)
+		case strings.HasPrefix(kind, "SPAN"): // it is a span
+			return p.parseSpan(event, data)
+		default:
+			return event, fmt.Errorf("message isn't in a correct semaas V2 format: kind '%s' should be either LOG or SPAN", kind)
+		}
+	case strings.HasPrefix(message, "V1|"):
+		parts := strings.Split(message, "|")
+		if len(parts) < 3 {
+			return event, fmt.Errorf("message isn't in a correct semaas format: does have at least 3 parts")
+		}
+		kind := parts[1]
+		data := strings.Join(parts[2:], "|")
+
+		switch {
+		case strings.HasPrefix(kind, "METRIC"): // it is a metric
+			return p.parseMetricV1(event, data, kind)
+		default:
+			return event, fmt.Errorf("message isn't in a correct semaas V1 format: kind '%s' should METRIC", kind)
+		}
 	default:
-		return event, fmt.Errorf("message isn't in a correct semaas format: kind '%s' should be either LOG or SPAN", kind)
+		// fmt.Errorf("message isn't in a correct semaas format: does not start with version")
+		return event, nil
 	}
 }
 
@@ -172,6 +191,73 @@ func (p *decode_semaas) parseSpan(event *beat.Event, data string) (*beat.Event, 
 	return event, nil
 }
 
+func (p *decode_semaas) parseMetricV1(event *beat.Event, data, kind string) (*beat.Event, error) {
+	var metric Metrics
+	if err := json.NewDecoder(strings.NewReader(data)).Decode(&metric); err != nil {
+		return event, fmt.Errorf("error decoding metric V1: %s", err)
+	}
+
+	semaasKind := "metricv1"
+	if semaasKind == "METRIC.CORE" {
+		semaasKind = "metriccorev1"
+	}
+	event.PutValue("semaas.kind", semaasKind)
+
+	if metric.Properties != nil && len(metric.Properties) > 0 {
+		ok := false
+		if propValue, err := event.GetValue("semaas.properties"); err == nil {
+			if properties, ok := propValue.(common.MapStr); ok {
+				for k, v := range metric.Properties {
+					properties[k] = v
+				}
+				event.PutValue("semaas.properties", properties)
+				ok = true
+			}
+		}
+		if !ok {
+			event.PutValue("semaas.properties", metric.Properties)
+		}
+	}
+
+	event.PutValue("semaas.metric.values", metric.Values)
+	event.PutValue("semaas.metric.metricSetId", metric.MetricSetID)
+
+	return event, nil
+}
+
 func (p decode_semaas) String() string {
 	return "decode_semaas="
+}
+
+type Metrics struct {
+	Timestamp   time.Time                 `json:"-"`
+	MetricSetID string                    `json:"metricSetId"`
+	Values      map[string]mu.MetricValue `json:"metrics"`
+	Properties  map[string]interface{}    `json:"properties,omitempty"`
+}
+
+type metricInternal Metrics // just to avoid a marshall loop
+
+type jsonMetrics struct {
+	metricInternal
+	Timestamp int64 `json:"timestamp"`
+}
+
+func (m *Metrics) MarshalJSON() ([]byte, error) {
+	return json.Marshal(
+		jsonMetrics{
+			metricInternal: metricInternal(*m),
+			Timestamp:      m.Timestamp.UnixNano(),
+		},
+	)
+}
+
+func (m *Metrics) UnmarshalJSON(data []byte) error {
+	var v jsonMetrics
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	*m = Metrics(v.metricInternal)
+	m.Timestamp = time.Unix(0, v.Timestamp)
+	return nil
 }
