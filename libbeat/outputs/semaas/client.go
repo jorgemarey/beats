@@ -173,15 +173,16 @@ func (c *semmasClient) Publish(batch publisher.Batch) error {
 		}
 
 		kind, err := event.GetValue("semaas.kind")
-		if err == nil {
-			switch kind.(string) {
-			case "span":
-				err = c.processSpan(event, namespace, mrID)
-			case "log":
-				err = c.processLog(event, namespace, mrID)
-			case "metricv1", "metriccorev1":
-				err = c.processMetricV1(event, namespace, mrID, kind.(string))
-			}
+		if err != nil {
+			kind = "log"
+		}
+		switch kind.(string) {
+		case "span":
+			err = c.processSpan(event, namespace, mrID)
+		case "metricv1", "metriccorev1":
+			err = c.processMetricV1(event, namespace, mrID, kind.(string))
+		case "log":
+			err = c.processLog(event, namespace, mrID)
 		}
 	}
 

@@ -198,7 +198,7 @@ func (p *decode_semaas) parseMetricV1(event *beat.Event, data, kind string) (*be
 	}
 
 	semaasKind := "metricv1"
-	if semaasKind == "METRIC.CORE" {
+	if kind == "METRIC.CORE" {
 		semaasKind = "metriccorev1"
 	}
 	event.PutValue("semaas.kind", semaasKind)
