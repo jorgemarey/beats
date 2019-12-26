@@ -197,6 +197,14 @@ func (c *semmasClient) String() string {
 func (c *semmasClient) processLog(event *beat.Event, namespace, fallbackMrID string) error {
 	// parse log
 	log := &omega.LogEntry{CreationDate: event.Timestamp}
+	if msg, err := event.GetValue("message"); err == nil {
+		log.Message = msg.(string)
+	}
+	// Do not send empty messages
+	if log.Message == "" {
+		return nil
+	}
+
 	if mrID, err := event.GetValue("semaas.mrId"); err == nil {
 		log.MrID = mrID.(string)
 	}
@@ -205,9 +213,6 @@ func (c *semmasClient) processLog(event *beat.Event, namespace, fallbackMrID str
 	}
 	if traceID, err := event.GetValue("semaas.traceId"); err == nil {
 		log.TraceID = traceID.(string)
-	}
-	if msg, err := event.GetValue("message"); err == nil {
-		log.Message = msg.(string)
 	}
 	if level, err := event.GetValue("semaas.log.level"); err == nil {
 		log.Level = level.(omega.LogLevel)
