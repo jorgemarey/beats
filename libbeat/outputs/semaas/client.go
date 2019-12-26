@@ -61,7 +61,7 @@ const (
 type semmasClient struct {
 	observer outputs.Observer
 	timeout  time.Duration
-	log 	 *logp.Logger
+	log      *logp.Logger
 
 	omegaURL string
 	rhoURL   string
@@ -116,7 +116,7 @@ func newClient(cert tls.Certificate, namespace, mrID, namespaceField, mrIDField,
 
 	return &semmasClient{
 		timeout:                  timeout,
-		log: 					  logp.NewLogger("semaas"),
+		log:                      logp.NewLogger("semaas"),
 		omegaURL:                 omegaURL,
 		rhoURL:                   rhoURL,
 		muURL:                    muURL,
@@ -151,10 +151,9 @@ func (c *semmasClient) Close() error {
 }
 
 func (c *semmasClient) Publish(batch publisher.Batch) error {
-	namespace := c.namespace
-	mrID := c.defaultMrID
-
 	for _, pev := range batch.Events() {
+		namespace := c.namespace
+		mrID := c.defaultMrID
 		event := &pev.Content
 
 		if namespace == "" {
@@ -511,7 +510,7 @@ func (c *semmasClient) processMetricV1(event *beat.Event, namespace, fallbackMrI
 
 	if metricSetID != "" {
 		if err := c.muClient.AddMeasurements(metricSetID, []mu.Metrics{metric}, mu.WithNamespace(namespace)); err != nil {
-			c.log.Errorf("Error sending metric: %v\n", err)
+			c.log.Errorf("Error sending metric (%+v): %v\n", metric, err)
 		}
 	}
 	return nil
