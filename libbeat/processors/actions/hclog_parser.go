@@ -26,17 +26,17 @@ import (
 	"github.com/elastic/beats/libbeat/processors"
 )
 
-type nomad_log_parser struct{}
+type hclog_parser struct{}
 
 func init() {
-	processors.RegisterPlugin("nomad_log_parser", NewNomadLogParser)
+	processors.RegisterPlugin("hclog_parser", NewHCLogParser)
 }
 
-func NewNomadLogParser(c *common.Config) (processors.Processor, error) {
-	return &nomad_log_parser{}, nil
+func NewHCLogParser(c *common.Config) (processors.Processor, error) {
+	return &hclog_parser{}, nil
 }
 
-func (p *nomad_log_parser) Run(event *beat.Event) (*beat.Event, error) {
+func (p *hclog_parser) Run(event *beat.Event) (*beat.Event, error) {
 	msg, err := event.GetValue("message")
 	if err != nil {
 		return event, nil
@@ -70,6 +70,6 @@ func (p *nomad_log_parser) Run(event *beat.Event) (*beat.Event, error) {
 	return event, nil
 }
 
-func (p nomad_log_parser) String() string {
-	return "nomad_log_parser="
+func (p hclog_parser) String() string {
+	return "hclog_parser="
 }
