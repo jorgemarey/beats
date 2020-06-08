@@ -31,8 +31,8 @@ import (
 	"globaldevtools.bbva.com/entsec/semaas.git/client/rho"
 
 	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/logp"
 	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/libbeat/logp"
 	"github.com/elastic/beats/libbeat/outputs"
 	"github.com/elastic/beats/libbeat/publisher"
 
@@ -66,7 +66,6 @@ type semmasClient struct {
 	omegaURL string
 	rhoURL   string
 	muURL    string
-	muClient *mu.Client
 
 	cert                     tls.Certificate
 	defaultMrID              string
@@ -77,6 +76,9 @@ type semmasClient struct {
 
 	semaasBundlers map[string]*bundler.Bundler
 	l              sync.Mutex
+
+	metricBundlers map[string]*bundler.Bundler
+	metricl        sync.Mutex
 }
 
 func newClient(cert tls.Certificate, namespace, mrID, namespaceField, mrIDField, omegaURL, rhoURL, muURL string, apf []string, timeout time.Duration) (*semmasClient, error) {
@@ -109,18 +111,18 @@ func newClient(cert tls.Certificate, namespace, mrID, namespaceField, mrIDField,
 	// if err != nil {
 	// 	return nil, fmt.Errorf("error creating rho client: %s", err)
 	// }
-	mc, err := newMuClient(muURL, cert, timeout)
-	if err != nil {
-		return nil, err
-	}
+	// mc, err := newMuClient(muURL, cert, timeout)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	return &semmasClient{
-		timeout:                  timeout,
-		log:                      logp.NewLogger("semaas"),
-		omegaURL:                 omegaURL,
-		rhoURL:                   rhoURL,
-		muURL:                    muURL,
-		muClient:                 mc,
+		timeout:  timeout,
+		log:      logp.NewLogger("semaas"),
+		omegaURL: omegaURL,
+		rhoURL:   rhoURL,
+		muURL:    muURL,
+
 		cert:                     cert,
 		defaultMrID:              mrID,
 		mrIDField:                mrIDField,
@@ -128,6 +130,7 @@ func newClient(cert tls.Certificate, namespace, mrID, namespaceField, mrIDField,
 		namespaceField:           namespaceField,
 		additionalPropertyFields: apf,
 		semaasBundlers:           make(map[string]*bundler.Bundler),
+		metricBundlers:           make(map[string]*bundler.Bundler),
 	}, nil
 }
 
@@ -141,6 +144,13 @@ func (c *semmasClient) Close() error {
 	wg := sync.WaitGroup{}
 	wg.Add(len(c.semaasBundlers))
 	for _, v := range c.semaasBundlers {
+		go func(v *bundler.Bundler) {
+			v.Flush()
+			wg.Done()
+		}(v)
+	}
+	wg.Add(len(c.metricBundlers))
+	for _, v := range c.metricBundlers {
 		go func(v *bundler.Bundler) {
 			v.Flush()
 			wg.Done()
@@ -204,6 +214,11 @@ func (c *semmasClient) processLog(event *beat.Event, namespace, fallbackMrID str
 		return nil
 	}
 
+	if nsI, err := event.GetValue("semaas.ns"); err == nil {
+		if ns := nsI.(string); ns != "" {
+			namespace = ns
+		}
+	}
 	if mrID, err := event.GetValue("semaas.mrId"); err == nil {
 		log.MrID = mrID.(string)
 	}
@@ -258,6 +273,11 @@ func (c *semmasClient) processLog(event *beat.Event, namespace, fallbackMrID str
 func (c *semmasClient) processSpan(event *beat.Event, namespace, fallbackMrID string) error {
 	// parse span
 	span := &rho.Span{}
+	if nsI, err := event.GetValue("semaas.ns"); err == nil {
+		if ns := nsI.(string); ns != "" {
+			namespace = ns
+		}
+	}
 	if mrID, err := event.GetValue("semaas.mrId"); err == nil {
 		span.MrID = mrID.(string)
 	}
@@ -348,7 +368,7 @@ func omegaBundler(sc *client.Client) (*bundler.Bundler, error) {
 			if err := oc.Load(context.Background(), bulk); err != nil {
 				switch err := err.(type) {
 				case *omega.LoadError:
-					log.Printf("error loading entries: %s", err.Err.Error())
+					log.Printf("error loading entries to namespace %s: %s", sc.Namespace(), err.Err.Error())
 					for _, item := range err.InvalidEntities {
 						if item.Position < len(bulk) { // just to check
 							log.Printf("item %+v has error: %v", bulk[item.Position], item.Error)
@@ -356,10 +376,10 @@ func omegaBundler(sc *client.Client) (*bundler.Bundler, error) {
 					}
 					return
 				case *omega.Err:
-					log.Printf("error loading entries: %s", err)
+					log.Printf("error loading entries to namespace %s: %s", sc.Namespace(), err)
 					return
 				default:
-					log.Printf("error loading entries to omega: %s. Waiting to re-upload.", err)
+					log.Printf("error loading entries to namespace: %s. Waiting to re-upload: %s", sc.Namespace(), err)
 					time.Sleep(5 * time.Second)
 				}
 			}
@@ -379,7 +399,7 @@ func rhoBundler(sc *client.Client) (*bundler.Bundler, error) {
 			if err := rc.Create(context.Background(), bulk); err != nil {
 				switch err := err.(type) {
 				case *omega.LoadError:
-					log.Printf("error loading entries: %s", err.Err.Error())
+					log.Printf("error loading spans to namespace %s: %s", sc.Namespace(), err.Err.Error())
 					for _, item := range err.InvalidEntities {
 						if item.Position < len(bulk) { // just to check
 							log.Printf("item %v has error: %v", bulk[item.Position], item.Error)
@@ -387,10 +407,10 @@ func rhoBundler(sc *client.Client) (*bundler.Bundler, error) {
 					}
 					return
 				case *omega.Err:
-					log.Printf("error loading entries: %s", err)
+					log.Printf("error loading spans to namespace %s: %s", sc.Namespace(), err)
 					return
 				default:
-					log.Printf("error loading entries to omega: %s. Waiting to re-upload.", err)
+					log.Printf("error loading spans to namespace: %s. Waiting to re-upload: %s", sc.Namespace(), err)
 					time.Sleep(5 * time.Second)
 				}
 			}
@@ -447,27 +467,27 @@ func (c *semmasClient) newSemaasBundler(namespace, kind string) (*bundler.Bundle
 	return b, nil
 }
 
-func newMuClient(muURL string, cert tls.Certificate, timeout time.Duration) (*mu.Client, error) {
-	opts := mu.EnvOptions()
-	opts = append(opts,
-		client.WithClientCert(cert),
-		client.WithNamespace("EMPTY"),
-		client.WithSkipVerify(),
-		client.WithTimeout(timeout),
-	)
-	if muURL != "" {
-		opts = append(opts, client.WithURL(muURL))
-	}
-	sc, err := client.New(opts...)
-	if err != nil {
-		return nil, fmt.Errorf("error creating semaas client: %s", err)
-	}
-	mc, err := mu.New(sc)
-	if err != nil {
-		return nil, fmt.Errorf("error creating rho client: %s", err)
-	}
-	return mc, nil
-}
+// func newMuClient(muURL string, cert tls.Certificate, timeout time.Duration) (*mu.Client, error) {
+// 	opts := mu.EnvOptions()
+// 	opts = append(opts,
+// 		client.WithClientCert(cert),
+// 		client.WithNamespace("EMPTY"),
+// 		client.WithSkipVerify(),
+// 		client.WithTimeout(timeout),
+// 	)
+// 	if muURL != "" {
+// 		opts = append(opts, client.WithURL(muURL))
+// 	}
+// 	sc, err := client.New(opts...)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("error creating semaas client: %s", err)
+// 	}
+// 	mc, err := mu.New(sc)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("error creating mu client: %s", err)
+// 	}
+// 	return mc, nil
+// }
 
 func (c *semmasClient) processMetricV1(event *beat.Event, namespace, fallbackMrID, kind string) error {
 	metric := mu.Metrics{Timestamp: event.Timestamp}
@@ -509,9 +529,81 @@ func (c *semmasClient) processMetricV1(event *beat.Event, namespace, fallbackMrI
 	}
 
 	if metricSetID != "" {
-		if err := c.muClient.AddMeasurements(metricSetID, []mu.Metrics{metric}, mu.WithNamespace(namespace)); err != nil {
-			c.log.Errorf("Error sending metric (%+v): %v\n", metric, err)
+		// if err := c.muClient.AddMeasurements(metricSetID, []mu.Metrics{metric}, mu.WithNamespace(namespace)); err != nil {
+		// 	c.log.Errorf("Error sending metric (%+v): %v\n", metric, err)
+		// }
+		b := c.getMetricBundler(namespace, metricSetID)
+		if b == nil {
+			return fmt.Errorf("Unable to get bundler for: %s/%s", namespace, kindSpans)
+		}
+
+		// TODO: fix len
+		if err := b.AddWait(context.Background(), metric, 100); err != nil {
+			return fmt.Errorf("error adding span to bundler: %s", err)
 		}
 	}
 	return nil
+}
+
+func (c *semmasClient) getMetricBundler(namespace, metricSetID string) *bundler.Bundler {
+	key := namespace + "+" + metricSetID
+	c.metricl.Lock()
+	defer c.metricl.Unlock()
+	b, ok := c.metricBundlers[key]
+	if ok {
+		return b
+	}
+	b, err := c.newMetricBundler(namespace, metricSetID)
+	if err != nil {
+		log.Printf("error creating bundler: %s", err)
+		return nil
+	}
+	c.metricBundlers[key] = b
+	return b
+}
+
+func (c *semmasClient) newMetricBundler(namespace, metricSetID string) (*bundler.Bundler, error) {
+	var b *bundler.Bundler
+	opts := mu.EnvOptions()
+	opts = append(opts,
+		client.WithClientCert(c.cert),
+		client.WithNamespace(namespace),
+		client.WithSkipVerify(),
+		client.WithTimeout(c.timeout),
+	)
+	if c.muURL != "" {
+		opts = append(opts, client.WithURL(c.muURL))
+	}
+	sc, err := client.New(opts...)
+	if err != nil {
+		return nil, fmt.Errorf("error creating semaas client: %s", err)
+	}
+	b, err = muBundler(sc, metricSetID)
+	if err != nil {
+		return nil, err
+	}
+	b.DelayThreshold = DefaultDelayThreshold
+	b.BundleCountThreshold = DefaultEntryCountThreshold
+	b.BundleByteThreshold = DefaultEntryByteThreshold
+	b.BufferedByteLimit = DefaultBufferedByteLimit
+	return b, nil
+}
+
+func muBundler(sc *client.Client, metricSetID string) (*bundler.Bundler, error) {
+	mc, err := mu.New(sc)
+	if err != nil {
+		return nil, fmt.Errorf("error creating mu client: %s", err)
+	}
+	return bundler.NewBundler(mu.Metrics{}, func(entries interface{}) {
+		bulk := entries.([]mu.Metrics)
+		// for {
+		if err := mc.AddMeasurements(metricSetID, bulk); err != nil {
+			// switch err := err.(type) {
+			// default:
+			log.Printf("error loading entries to namespace %s: %s", sc.Namespace(), err)
+			// }
+		}
+		return
+		// }
+	}), nil
 }

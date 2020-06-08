@@ -105,8 +105,13 @@ func (p *decode_semaas) parse(event *beat.Event, message string) (*beat.Event, e
 	}
 }
 
+type nsLogEntry struct {
+	omega.LogEntry
+	Ns string `json:"namespace"`
+}
+
 func (p *decode_semaas) parseLogEntry(event *beat.Event, data, kind string) (*beat.Event, error) {
-	var entry omega.LogEntry
+	var entry nsLogEntry
 	if err := json.NewDecoder(strings.NewReader(data)).Decode(&entry); err != nil {
 		return event, fmt.Errorf("error decoding log entry: %s", err)
 	}
@@ -124,6 +129,9 @@ func (p *decode_semaas) parseLogEntry(event *beat.Event, data, kind string) (*be
 	event.PutValue("message", entry.Message)
 	event.PutValue("@timestamp", entry.CreationDate)
 
+	if entry.Ns != "" {
+		event.PutValue("semaas.ns", entry.Ns)
+	}
 	if entry.MrID != "" {
 		event.PutValue("semaas.mrId", entry.MrID)
 	}
@@ -153,8 +161,13 @@ func (p *decode_semaas) parseLogEntry(event *beat.Event, data, kind string) (*be
 	return event, nil
 }
 
+type nsSpan struct {
+	rho.Span
+	Ns string `json:"namespace"`
+}
+
 func (p *decode_semaas) parseSpan(event *beat.Event, data string) (*beat.Event, error) {
-	var span rho.Span
+	var span nsSpan
 	if err := json.NewDecoder(strings.NewReader(data)).Decode(&span); err != nil {
 		return event, fmt.Errorf("error decoding span: %s", err)
 	}
@@ -163,9 +176,18 @@ func (p *decode_semaas) parseSpan(event *beat.Event, data string) (*beat.Event, 
 
 	event.PutValue("message", "-")
 
-	event.PutValue("semaas.mrId", span.MrID)
-	event.PutValue("semaas.spanId", span.SpanID)
-	event.PutValue("semaas.traceId", span.TraceID)
+	if span.Ns != "" {
+		event.PutValue("semaas.ns", span.Ns)
+	}
+	if span.MrID != "" {
+		event.PutValue("semaas.mrId", span.MrID)
+	}
+	if span.SpanID != "" {
+		event.PutValue("semaas.spanId", span.SpanID)
+	}
+	if span.TraceID != "" {
+		event.PutValue("semaas.traceId", span.TraceID)
+	}
 	if span.Properties != nil && len(span.Properties) > 0 {
 		ok := false
 		if propValue, err := event.GetValue("semaas.properties"); err == nil {
