@@ -29,7 +29,6 @@ import (
 
 	"globaldevtools.bbva.com/entsec/semaas.git/client/mu"
 	"globaldevtools.bbva.com/entsec/semaas.git/client/omega"
-	"globaldevtools.bbva.com/entsec/semaas.git/client/rho"
 )
 
 const (
@@ -106,8 +105,14 @@ func (p *decode_semaas) parse(event *beat.Event, message string) (*beat.Event, e
 }
 
 type nsLogEntry struct {
-	omega.LogEntry
-	Ns string `json:"namespace"`
+	Ns           string                 `json:"namespace,omitempty"`
+	MrID         string                 `json:"mrId"`
+	SpanID       string                 `json:"spanId,omitempty"`
+	TraceID      string                 `json:"traceId,omitempty"`
+	CreationDate int64                  `json:"creationDate,omitempty"`
+	Level        omega.LogLevel         `json:"level,omitempty"`
+	Message      string                 `json:"message,omitempty"`
+	Properties   map[string]interface{} `json:"properties,omitempty"`
 }
 
 func (p *decode_semaas) parseLogEntry(event *beat.Event, data, kind string) (*beat.Event, error) {
@@ -127,7 +132,7 @@ func (p *decode_semaas) parseLogEntry(event *beat.Event, data, kind string) (*be
 	event.PutValue("semaas.kind", "log")
 
 	event.PutValue("message", entry.Message)
-	event.PutValue("@timestamp", entry.CreationDate)
+	event.PutValue("@timestamp", time.Unix(0, entry.CreationDate))
 
 	if entry.Ns != "" {
 		event.PutValue("semaas.ns", entry.Ns)
@@ -162,8 +167,16 @@ func (p *decode_semaas) parseLogEntry(event *beat.Event, data, kind string) (*be
 }
 
 type nsSpan struct {
-	rho.Span
-	Ns string `json:"namespace"`
+	Ns         string                 `json:"namespace"`
+	MrID       string                 `json:"mrId"`
+	Name       string                 `json:"name,omitempty"`
+	SpanID     string                 `json:"spanId,omitempty"`
+	TraceID    string                 `json:"traceId,omitempty"`
+	ParentSpan string                 `json:"parentSpan,omitempty"`
+	StartDate  int64                  `json:"startDate,omitempty"`
+	FinishDate int64                  `json:"finishDate,omitempty"`
+	Duration   int64                  `json:"duration,omitempty"`
+	Properties map[string]interface{} `json:"properties,omitempty"`
 }
 
 func (p *decode_semaas) parseSpan(event *beat.Event, data string) (*beat.Event, error) {
@@ -207,8 +220,8 @@ func (p *decode_semaas) parseSpan(event *beat.Event, data string) (*beat.Event, 
 	event.PutValue("semaas.span.name", span.Name)
 	event.PutValue("semaas.span.parentSpan", span.ParentSpan)
 	event.PutValue("semaas.span.duration", span.Duration)
-	event.PutValue("semaas.span.startDate", span.StartDate)
-	event.PutValue("semaas.span.finishDate", span.FinishDate)
+	event.PutValue("semaas.span.startDate", time.Unix(0, span.StartDate))
+	event.PutValue("semaas.span.finishDate", time.Unix(0, span.FinishDate))
 
 	return event, nil
 }
